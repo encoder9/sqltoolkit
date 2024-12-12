@@ -64,9 +64,6 @@ export default abstract class Database {
 			database: dbCredentials.database,
 		});
 		
-		console.log(connection);
-		
-		
 		try {
 			// Loop through and execute SQL commands
 			for (const statement of sqlStatements) {
@@ -81,8 +78,8 @@ export default abstract class Database {
 			}
 		} catch (connectionError: any) {
 			console.error(`Error connecting to the database: ${connectionError.message}`);
-		} finally {
-			await connection.end();
 		}
+		
+		await connection.end();
 	}
 }
