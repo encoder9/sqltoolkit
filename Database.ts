@@ -1,14 +1,14 @@
 import { Client as PgClient } from "pg"; // PostgreSQL client for SQL execution
 import mysql from "mysql2/promise"; // MySQL client for SQL execution
 import { DatabaseType, type DatabaseCredentials } from "./interfaces";
+import SQL from "./sql";
 
 export default abstract class Database {
-	public static async executeSQL(dbCredentials: DatabaseCredentials, sqlStatements: string[]) {
-		if (dbCredentials.type === DatabaseType.Postgres) { await this.executePostgresSQL(dbCredentials, sqlStatements); }
-		else if (dbCredentials.type === DatabaseType.MySQL) { await this.executeMySQL(dbCredentials, sqlStatements); }
-		else {
-			console.error("Unsupported database type.");
-			process.exit(1);
+	public static async executeSQL(dbCredentials: DatabaseCredentials[], sqlStatements: string[]) {
+		for (const db of dbCredentials) {
+			if (db.type === DatabaseType.Postgres) { await this.executePostgresSQL(db, sqlStatements); }
+			else if (db.type === DatabaseType.MySQL) { await this.executeMySQL(db, sqlStatements); }
+			else { console.error("Unsupported database type."); }
 		}
 	}
 	
@@ -64,20 +64,8 @@ export default abstract class Database {
 			database: dbCredentials.database,
 		});
 		
-		try {
-			// Loop through and execute SQL commands
-			for (const statement of sqlStatements) {
-				// console.log(statement);
-				
-				// Execute the command if it hasn't been run
-				// try {
-					
-				// } catch (executionError) {
-				// 	console.error(`Error executing command: ${executionError.message}`);
-				// }
-			}
-		} catch (connectionError: any) {
-			console.error(`Error connecting to the database: ${connectionError.message}`);
+		for (let i = 0; i < sqlStatements.length; i++) {
+			await SQL.processSQLStatement(sqlStatements[i], connection, i + 1, sqlStatements.length);
 		}
 		
 		await connection.end();

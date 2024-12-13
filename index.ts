@@ -1,8 +1,9 @@
+import { DatabaseType, type DatabaseCredentials, type DatabaseFileStructure } from "./interfaces";
 import { parseArgs } from "util";
-import { DatabaseType, type DatabaseCredentials } from "./interfaces";
-import SQL from "./sql";
-import Database from "./Database";
 import { readFileSync } from "fs";
+import Database from "./Database";
+import SQL from "./sql";
+import Log from "./log";
 
 const { values, positionals } = parseArgs({
 	args: Bun.argv,
@@ -39,15 +40,17 @@ if (values.help) {
 		"databases": [{
 			"host": "localhost",
 			"port": 3306,
-			"name": "database1",
-			"username": "database1",
-			"password": "database1"
+			"user": "database1",
+			"database": "database1",
+			"password": "database1",
+			"type": "mysql"
 		}, {
 			"host": "localhost",
 			"port": 3306,
-			"name": "database2",
-			"username": "database2",
-			"password": "database2"
+			"user": "database2",
+			"database": "database2",
+			"password": "database2",
+			"type": "mysql"
 		}]
 	}, null, 4));
 	
@@ -69,22 +72,22 @@ if (!values.sql) {
 	if (values.databases) {
 		try {
 			const fileContent = readFileSync(values.databases, "utf-8");
-			const parsedData = JSON.parse(fileContent);
+			const parsedData: DatabaseFileStructure = JSON.parse(fileContent);
 			
 			if (Array.isArray(parsedData.databases)) {
 				dbCredentials = parsedData.databases.map(db => ({
 					host: db.host,
 					port: db.port,
-					user: db.username,
+					user: db.user,
 					password: db.password,
-					database: db.name,
+					database: db.database,
 					type: values.dbType === 'mysql' ? DatabaseType.MySQL : DatabaseType.Postgres
 				}));
 			} else {
 				console.error("Invalid format in databases JSON file.");
 				process.exit(1);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error reading or parsing the databases JSON file:", error.message);
 			process.exit(1);
 		}
@@ -98,11 +101,12 @@ if (!values.sql) {
 			type: values.dbType === 'mysql' ? DatabaseType.MySQL : DatabaseType.Postgres
 		});
 	}
-
+	
 	const sqlStatements = await SQL.getStatements(values.sql);
-
+	
 	if (sqlStatements) {
 		await Database.executeSQL(dbCredentials, sqlStatements);
+		Log.print();
 		process.exit(0);
 	} else {
 		console.log("No SQL statements found.");
