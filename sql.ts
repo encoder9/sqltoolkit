@@ -62,6 +62,7 @@ export default abstract class SQL {
 		else if (command == 'alter') { await SQL.processAlter(sql, connection, index, length, parts); }
 		else if (command == 'truncate') { await SQL.processTruncate(sql, connection, index, length, parts); }
 		// else { Log.info(`Unsupported SQL command: ${command}`, index, length); }
+		
 	}
 	
 	private static convertToCorrectDataType(value: string) {
@@ -88,10 +89,7 @@ export default abstract class SQL {
 		
 		if (firstPartName.includes(')')) {
 			if (firstPartName.includes("'") || firstPartName.includes('"')) {
-				const quotedString = SQL.extractQuotedStrings(parts, firstPartName);
-				console.log(quotedString);
-				
-				extractedValues.push(SQL.convertToCorrectDataType(quotedString.replace(')', '')));
+				extractedValues.push(SQL.convertToCorrectDataType(SQL.extractQuotedStrings(parts, firstPartName).replace(')', '')));
 			} else {
 				extractedValues.push(SQL.convertToCorrectDataType(firstPartName.replace(')', '')));
 			}
@@ -122,6 +120,7 @@ export default abstract class SQL {
 	
 	private static extractQuotedStrings(parts: string[], firstPartName: string) {
 		const stringParts: string[] = [firstPartName.replace(/^'|"/, '')];
+		if (firstPartName.includes("'") || firstPartName.includes('"')) { return firstPartName.replace(/,$/, '').replace(/'|"$/, ''); }
 		let keepProcessing = true;
 		
 		while (keepProcessing) {
@@ -276,6 +275,8 @@ export default abstract class SQL {
 		*/
 		
 		const insertStatement = SQL.decodeInsertStatement(sql);
+		console.log(insertStatement);
+		
 		
 		// Check if the table exists
 		if (await SQL.checkTableExists(connection, insertStatement.tableName)) {
@@ -299,24 +300,24 @@ export default abstract class SQL {
 							}
 						}
 						
-						if (pkFieldsAreNull) {
-							const recordExists = await SQL.checkRecordExists(connection, table, insertStatement, true);
+						// if (pkFieldsAreNull) {
+						// 	const recordExists = await SQL.checkRecordExists(connection, table, insertStatement, true);
 							
-							// if (recordExists) {
-							// 	console.log(`Record already exists in table ${insertStatement.tableName}`);
-							// } else {
-							// 	await SQL.insertRecord(connection, insertStatement.tableName, valuesGroup);
-							// }
-						} else {
-							console.log('Got data for primary key fields');
+						// 	// if (recordExists) {
+						// 	// 	console.log(`Record already exists in table ${insertStatement.tableName}`);
+						// 	// } else {
+						// 	// 	await SQL.insertRecord(connection, insertStatement.tableName, valuesGroup);
+						// 	// }
+						// } else {
+						// 	console.log('Got data for primary key fields');
 							
-							// const recordExists = await SQL.checkRecordExists(connection, insertStatement.tableName, valuesGroup, primaryKeyFields, true);
-							// if (recordExists) {
-							// 	console.log(`Record already exists in table ${insertStatement.tableName}`);
-							// } else {
-							// 	await SQL.insertRecord(connection, insertStatement.tableName, valuesGroup);
-							// }
-						}
+						// 	// const recordExists = await SQL.checkRecordExists(connection, insertStatement.tableName, valuesGroup, primaryKeyFields, true);
+						// 	// if (recordExists) {
+						// 	// 	console.log(`Record already exists in table ${insertStatement.tableName}`);
+						// 	// } else {
+						// 	// 	await SQL.insertRecord(connection, insertStatement.tableName, valuesGroup);
+						// 	// }
+						// }
 					}
 				}
 				

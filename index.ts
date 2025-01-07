@@ -4,6 +4,7 @@ import { readFileSync } from "fs";
 import Database from "./Database";
 import SQL from "./sql";
 import Log from "./log";
+import SQLTokeniser from "./SQLTokeniser";
 
 const { values, positionals } = parseArgs({
 	args: Bun.argv,
@@ -26,7 +27,7 @@ const { values, positionals } = parseArgs({
 if (values.help) {
 	console.log(`Usage: node index.ts --sql <path> --dbName <name> --dbUsername <username> --dbPassword <password> --dbHost <host> --dbType <type> --dbPort <port>`);
 	console.log(`Options:`);
-	console.log(`  --sql <path>    Path to the SQL file to execute.`);
+	console.log(`  --sql <path>            Path to the SQL file to execute.`);
 	console.log(`  --dbName <name>         Database name.`);
 	console.log(`  --dbUsername <username> Database username. Will use dbName as dbUsername if not provided.`);
 	console.log(`  --dbPassword <password> Database password. Will use dbName as dbPassword if not provided.`);
@@ -34,6 +35,7 @@ if (values.help) {
 	console.log(`  --dbType <type>         Database type (default: mysql). Supported types: mysql, postgres.`);
 	console.log(`  --dbPort <port>         Database port (default: 3306).`);
 	console.log(`  --databases <path>      List of databases to execute SQL on. Call --databaseExample to output a sample file.`);
+	console.log(`  --databaseExample       Output a sample databases JSON file.`);
 	process.exit(0);
 } else if (values.databaseExample) {
 	console.log(JSON.stringify({
@@ -105,7 +107,8 @@ if (!values.sql) {
 	const sqlStatements = await SQL.getStatements(values.sql);
 	
 	if (sqlStatements) {
-		await Database.executeSQL(dbCredentials, sqlStatements);
+		console.log(SQLTokeniser.parseStatements(sqlStatements));
+		// await Database.executeSQL(dbCredentials, sqlStatements);
 		Log.print();
 		process.exit(0);
 	} else {
