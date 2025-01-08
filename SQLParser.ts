@@ -11,7 +11,15 @@ export default abstract class SQLParser {
 						parsedStatements.push(insert);
 					}
 					break;
-				
+					
+				case StatementType.UPDATE:
+					const update = SQLParser.decodeUpdateStatement(statement);
+					
+					if (update != null) {
+						parsedStatements.push(update);
+					}
+					break;
+					
 				default:
 					console.warn(`Unknown statement type: ${statement}`);
 			}
@@ -41,6 +49,8 @@ export default abstract class SQLParser {
 		
 		return statementType;
 	}
+	
+	//#region INSERT
 	
 	private static decodeInsertStatement(statement: string) {
 		const insertStatement: ParsedSQLStatement = {
@@ -200,6 +210,65 @@ export default abstract class SQLParser {
 		}
 	}
 	
+	//#endregion
+	
+	//#region UPDATE
+	
+	private static decodeUpdateStatement(statement: string) {
+		const updateStatement: ParsedSQLStatement = {
+			original: statement,
+			type: StatementType.UPDATE,
+			priority: null
+		};
+		
+		// Remove UPDATE
+		statement = statement.replace(/^UPDATE /i, '');
+		
+		// Look for [LOW_PRIORITY] [IGNORE]
+		if ((/LOW_PRIORITY/i).test(statement)) { updateStatement.priority = 'LOW_PRIORITY'; statement = statement.replace(/LOW_PRIORITY/i, ''); }
+		if ((/IGNORE/i).test(statement)) { updateStatement.ignore = true; statement = statement.replace(/IGNORE/i, ''); }
+		
+		// Look for SET
+		const setIndex = statement.indexOf('set');
+		
+		if (setIndex === -1) {
+			console.error('No SET found in UPDATE statement:', statement);
+			return null;
+		} else {
+			// Get table name
+			const tableReferences = SQLParser.extractTableReferences(statement.substring(0, setIndex).trim());
+			
+			if (tableReferences.length == 0) {
+				console.error('No table references found in UPDATE statement:', statement);
+			} else if (tableReferences.length == 1) {
+				if (typeof tableReferences[0] == 'string') {
+					updateStatement.tableName = <string>tableReferences[0];
+				} else {
+					const tableRef = <SQLTableReference>tableReferences[0];
+					
+					if (tableRef.tableAlias == '') {
+						updateStatement.tableName = tableRef.tableName;
+					} else {
+						updateStatement.tables = tableReferences;
+					}
+				}
+			} else {
+				updateStatement.tables = tableReferences;
+			}
+			
+			statement = statement.substring(setIndex + 3);
+			console.log(statement);
+			
+		}
+		
+		// console.log(updateStatement);
+		return updateStatement;
+	}
+	
+	//#endregion
+	
+	//#region UTILS
+	
 	private static extractCSV(str: string) {
 		const columns: string[] = [];
 		let currentColumn = '';
@@ -235,6 +304,31 @@ export default abstract class SQLParser {
 		
 		return kvp;
 	}
+	
+	private static extractTableReferences(str: string) {
+		const tables: (SQLTableReference | string)[] = [];
+		const tableParts = str.split(',');
+		
+		for (const tablePartItem of tableParts) {
+			const tablePart = tablePartItem.trim();
+			const asIndex = tablePart.toLowerCase().indexOf(' as ');
+			
+			if (asIndex == -1) {
+				tables.push(tablePart);
+			} else {
+				const asParts = tablePart.toLowerCase().split(' as ');
+				
+				tables.push({
+					tableName: asParts[0].trim(),
+					tableAlias: asParts[1].trim()
+				});
+			}
+		}
+		
+		return tables;
+	}
+	
+	//#endregion
 }
 
 enum StatementType {
@@ -251,7 +345,9 @@ interface ParsedSQLStatement {
 	original: string;
 	type: StatementType;
 	priority?: 'LOW_PRIORITY' | 'DELAYED' | 'HIGH_PRIORITY' | null;
+	ignore?: boolean;
 	tableName?: string;
+	tables?: (SQLTableReference | string)[];
 	columns?: string[] | null;
 	values?: ValidSQLDataTypes[] | null;
 	rowAlias?: string;
@@ -261,3 +357,8 @@ interface ParsedSQLStatement {
 }
 
 type ValidSQLDataTypes = string | number | boolean | null | Date | object;
+
+interface SQLTableReference {
+	tableName: string;
+	tableAlias: string;
+}
