@@ -22,8 +22,6 @@ export default abstract class SQLTokeniser {
 			const char = sql[i];
 			currentToken += char;
 			
-			// console.log(`>${currentToken}<`);
-			
 			if (SQLTokeniser.processToken(currentToken, statement, i === sql.length - 1)) {
 				currentToken = '';
 			}
@@ -37,10 +35,10 @@ export default abstract class SQLTokeniser {
 		
 		if (statement.lookingFor! & SQLComponent.STATEMENT_TYPE && statement.statementType == null && SQLTokeniser.checkForStatementType(upper, statement)) { return true; }
 		else if (statement.lookingFor! & SQLComponent.TABLE_NAME && SQLTokeniser.checkForTableName_AndColumns(upper, token, statement)) { return true; }
-		// else if (statement.lookingFor! & SQLComponent.VALUE_LIST && SQLTokeniser.checkForValues(token, statement)) { return true; }
-		// else if (statement.lookingFor! & SQLComponent.SET && SQLTokeniser.checkForSet(token, statement)) { return true; }
-		// else if (statement.lookingFor! & SQLComponent.ROW_ALIAS && SQLTokeniser.checkForRowAlias(token, statement)) { return true; }
-		// else if (statement.lookingFor! & SQLComponent.ON_DUPLICATE_KEY_UPDATE && SQLTokeniser.checkForOnDuplicateKeyUpdate(token, statement, isEnd)) { return true; }
+		else if (statement.lookingFor! & SQLComponent.VALUE_LIST && SQLTokeniser.checkForValues(token, statement)) { return true; }
+		else if (statement.lookingFor! & SQLComponent.SET && SQLTokeniser.checkForSet(upper, token, statement, isEnd)) { return true; }
+		else if (statement.lookingFor! & SQLComponent.ROW_ALIAS && SQLTokeniser.checkForRowAlias(upper, token, statement)) { return true; }
+		else if (statement.lookingFor! & SQLComponent.ON_DUPLICATE_KEY_UPDATE && SQLTokeniser.checkForOnDuplicateKeyUpdate(token, statement, isEnd)) { return true; }
 		else if (statement.lookingFor! & SQLComponent.END_OF_STATEMENT && isEnd) { return true; }
 		else { return false; }
 	}
@@ -59,21 +57,31 @@ export default abstract class SQLTokeniser {
 	
 	private static checkForTableName_AndColumns(upper: string, token: string, statement: ParsedSQLStatement) {
 		if (statement.statementType === Keyword.INSERT) {
-			console.log(`T>>${token}<<`);
-			
-			
-			// const parsed = token.trim().replace(' values', '');
-			
-			// if (parsed.includes('(')) {
-			// 	statement.tableName = parsed.substring(0, parsed.indexOf('(')).trim();
-			// 	statement.columns = SQLTokeniser.extractCSV(parsed.substring(parsed.indexOf('(') + 1, parsed.indexOf(')')));
-			// } else {
-			// 	statement.tableName = parsed;
-			// }
-			
-			// statement.lookingFor = SQLComponent.VALUE_LIST | SQLComponent.SET;
-			
-			// return true;
+			if (upper.includes('VALUES')) {
+				const parsed = token.substring(0, upper.indexOf('VALUES')).trim();
+				
+				if (parsed.includes('(')) {
+					statement.tableName = parsed.substring(0, parsed.indexOf('(')).trim();
+					statement.columns = SQLTokeniser.extractCSV(parsed.substring(parsed.indexOf('(') + 1, parsed.indexOf(')')));
+				} else {
+					statement.tableName = parsed;
+				}
+				
+				statement.lookingFor = SQLComponent.VALUE_LIST;
+				return true;
+			} else if (upper.includes('SET')) {
+				const parsed = token.substring(0, upper.indexOf('SET')).trim();
+				
+				if (parsed.includes('(')) {
+					statement.tableName = parsed.substring(0, parsed.indexOf('(')).trim();
+					statement.columns = SQLTokeniser.extractCSV(parsed.substring(parsed.indexOf('(') + 1, parsed.indexOf(')')));
+				} else {
+					statement.tableName = parsed;
+				}
+				
+				statement.lookingFor = SQLComponent.SET;
+				return true;
+			}
 		}
 		
 		return false;
@@ -136,8 +144,6 @@ export default abstract class SQLTokeniser {
 	
 	private static checkForValues(token: string, statement: ParsedSQLStatement) {
 		if (statement.statementType === Keyword.INSERT) {
-			console.log(`V>>${token}<<`);
-			
 			const list = SQLTokeniser.extractList(token);
 			
 			if (list != null) {
@@ -151,7 +157,9 @@ export default abstract class SQLTokeniser {
 		return false;
 	}
 	
-	private static checkForRowAlias(token: string, statement: ParsedSQLStatement) {
+	private static checkForRowAlias(upper: string, token: string, statement: ParsedSQLStatement) {
+		console.log(`T>>${token}<<`);
+		
 		if (token.startsWith(' AS ')) {
 			if (token.length > 4) {
 				if (token.toUpperCase().endsWith('ON')) {
@@ -179,10 +187,25 @@ export default abstract class SQLTokeniser {
 		}
 	}
 	
-	private static checkForSet(token: string, statement: ParsedSQLStatement) {
+	private static checkForSet(upper: string, token: string, statement: ParsedSQLStatement, isEnd: boolean) {
 		if (statement.statementType === Keyword.INSERT) {
-			console.log(`S>>${token}<<`);
+			let parsed = '';
 			
+			if (upper.includes(' AS')) {
+				parsed = token.substring(0, upper.indexOf(' AS')).trim();
+			} else if (upper.includes(' ON')) {
+				parsed = token.substring(0, upper.indexOf(' ON')).trim();
+			} else if (isEnd) {
+				parsed = token.trim();
+			}
+			
+			if (parsed != '') {
+				console.log(`S>>${token}<<`);
+				
+				statement.set = SQLTokeniser.extractKVP(parsed);
+				statement.lookingFor = SQLComponent.ROW_ALIAS;
+				return true;
+			}
 		}
 	}
 }
@@ -249,6 +272,7 @@ interface ParsedSQLStatement {
 	rowAlias?: string | null;
 	rowAliasColumns?: string[] | null;
 	onDuplicateKeyUpdate?: { [key: string]: string };
+	set?: { [key: string]: string };
 }
 
 type ValidSQLDataTypes = string | number | boolean | null | Date | object;

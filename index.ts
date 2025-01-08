@@ -5,6 +5,7 @@ import Database from "./Database";
 import SQL from "./sql";
 import Log from "./log";
 import SQLTokeniser from "./SQLTokeniser";
+import SQLParser from "./SQLParser";
 
 const { values, positionals } = parseArgs({
 	args: Bun.argv,
@@ -107,7 +108,7 @@ if (!values.sql) {
 	const sqlStatements = await SQL.getStatements(values.sql);
 	
 	if (sqlStatements) {
-		console.log(SQLTokeniser.parseStatements(sqlStatements));
+		SQLParser.parseStatements(sqlStatements);
 		// await Database.executeSQL(dbCredentials, sqlStatements);
 		Log.print();
 		process.exit(0);
