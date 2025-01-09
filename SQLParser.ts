@@ -1,27 +1,31 @@
+import SQL from "./sql";
+
 export default abstract class SQLParser {
 	public static parseStatements(statements: string[]) {
 		const parsedStatements: ParsedSQLStatement[] = [];
 		
 		for (const statement of statements) {
+			let parsed = null;
+			
 			switch (SQLParser.detectStatementType(statement)) {
 				case StatementType.INSERT:
-					const insert = SQLParser.decodeInsertStatement(statement);
-					
-					if (insert != null) {
-						parsedStatements.push(insert);
-					}
+					parsed = SQLParser.decodeInsertStatement(statement);
 					break;
 					
 				case StatementType.UPDATE:
-					const update = SQLParser.decodeUpdateStatement(statement);
+					parsed = SQLParser.decodeUpdateStatement(statement);
+					break;
 					
-					if (update != null) {
-						parsedStatements.push(update);
-					}
+				case StatementType.UPDATE:
+					parsed = SQLParser.decodeDeleteStatement(statement);
 					break;
 					
 				default:
 					console.warn(`Unknown statement type: ${statement}`);
+			}
+			
+			if (parsed != null) {
+				parsedStatements.push(parsed);
 			}
 		}
 		
@@ -257,12 +261,79 @@ export default abstract class SQLParser {
 			}
 			
 			statement = statement.substring(setIndex + 3);
-			console.log(statement);
 			
+			// Get Assignment List
+			const whereIndex = statement.toLowerCase().indexOf(' where');
+			const orderByIndex = statement.toLowerCase().indexOf(' order');
+			const limitIndex = statement.toLowerCase().indexOf(' limit');
+			
+			if (whereIndex == -1 && orderByIndex == -1 && limitIndex == -1) {
+				// Nothing else in the statement
+				updateStatement.set = SQLParser.extractKVP(statement);
+			} else {
+				const minIndex = Math.min(whereIndex, orderByIndex, limitIndex);
+				
+				if (minIndex > -1) {
+					updateStatement.set = SQLParser.extractKVP(statement.substring(0, minIndex));
+				}
+				
+				if (whereIndex > -1) {
+					// Where clause
+					const endIndex = Math.min(orderByIndex, limitIndex);
+					
+					if (endIndex > -1) {
+						updateStatement.where = statement.substring(whereIndex + 6, endIndex).trim();
+					} else {
+						updateStatement.where = statement.substring(whereIndex + 6).trim();
+					}
+				}
+				
+				if (orderByIndex > -1) {
+					// Order By clause
+					if (limitIndex > -1) {
+						updateStatement.orderBy = SQLParser.extractCSV(statement.substring(orderByIndex + 9, limitIndex).trim());
+					} else {
+						updateStatement.orderBy = SQLParser.extractCSV(statement.substring(orderByIndex + 9).trim());
+					}
+				}
+				
+				if (limitIndex > -1) {
+					// Limit clause
+					updateStatement.limit = statement.substring(limitIndex + 6).trim();
+				}
+			}
 		}
 		
-		// console.log(updateStatement);
 		return updateStatement;
+	}
+	
+	//#endregion
+	
+	//#region DELETE
+	
+	private static decodeDeleteStatement(statement: string) {
+		const deleteStatement: ParsedSQLStatement = {
+			original: statement,
+			type: StatementType.DELETE,
+			priority: null
+		};
+		
+		// Remove DELETE
+		statement = statement.replace(/^DELETE /i, '');
+		
+		console.log(statement);
+		
+		
+		// // Look for [LOW_PRIORITY] [IGNORE]
+		// if ((/LOW_PRIORITY/i).test(statement)) { deleteStatement.priority = 'LOW_PRIORITY'; statement = statement.replace(/LOW_PRIORITY/i, ''); }
+		// if ((/IGNORE/i).test(statement)) { deleteStatement.ignore = true; statement = statement.replace(/IGNORE/i, ''); }
+		
+		// // Look for SET
+		// const setIndex = statement.indexOf('set');
+		
+		// if (setIndex === -1) {
+			
+		// }
 	}
 	
 	//#endregion
@@ -354,6 +425,9 @@ interface ParsedSQLStatement {
 	rowAliasColumns?: string[];
 	onDuplicateKeyUpdate?: { [key: string]: string };
 	set?: { [key: string]: string };
+	where?: string;
+	orderBy?: string[];
+	limit?: string;
 }
 
 type ValidSQLDataTypes = string | number | boolean | null | Date | object;
